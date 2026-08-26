@@ -134,6 +134,34 @@
     letter-spacing: 0.03em;
   }
 
+  .size-diagram{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap: 14px;
+    margin: 4px 0 24px;
+  }
+  .size-diagram svg{ display:block; width: 100%; max-width: 320px; }
+  .size-legend{
+    display:flex;
+    flex-direction:column;
+    gap: 8px;
+  }
+  .legend-row{
+    display:flex;
+    align-items:center;
+    gap: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .legend-swatch{
+    width: 20px;
+    height: 20px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
   .stamp-stage{
     position: relative;
     display:flex;
@@ -381,6 +409,8 @@
   <div class="card" id="result">
     <div class="real-size" id="realSize"></div>
 
+    <div class="size-diagram" id="sizeDiagram"></div>
+
     <div class="stamp-stage">
       <div class="stamp-mark" id="stampMark">
         <div class="stamp-code" id="stampCode"></div>
@@ -582,6 +612,9 @@ function handleCalculate(){
   document.getElementById('realSize').textContent =
     `ขนาดจริง : ${width.toFixed(2)} × ${length.toFixed(2)} ซม.`;
 
+  document.getElementById('sizeDiagram').innerHTML =
+    buildSizeDiagram(width, length, selected.refWidth, selected.refLength);
+
   document.getElementById('stampCode').textContent = selected.code;
   document.getElementById('stampDims').textContent =
     `แท่น ${selected.refWidth} × ${selected.refLength}`;
@@ -662,6 +695,39 @@ function buildRefTableHTML(){
     html += '</div>';
   });
   return html;
+}
+
+function buildSizeDiagram(realWidth, realLength, refWidth, refLength){
+  const viewW = 300, viewH = 150, pad = 20;
+  const availW = viewW - pad * 2;
+  const availH = viewH - pad * 2;
+  const scale = Math.min(availW / refLength, availH / refWidth);
+
+  const outerW = refLength * scale;
+  const outerH = refWidth * scale;
+  const innerW = realLength * scale;
+  const innerH = realWidth * scale;
+
+  const outerX = (viewW - outerW) / 2;
+  const outerY = (viewH - outerH) / 2;
+  const innerX = outerX + (outerW - innerW) / 2;
+  const innerY = outerY + (outerH - innerH) / 2;
+
+  const svg = `
+    <svg viewBox="0 0 ${viewW} ${viewH}">
+      <rect x="${outerX.toFixed(1)}" y="${outerY.toFixed(1)}" width="${outerW.toFixed(1)}" height="${outerH.toFixed(1)}"
+            fill="#e87ba3"/>
+      <rect x="${innerX.toFixed(1)}" y="${innerY.toFixed(1)}" width="${innerW.toFixed(1)}" height="${innerH.toFixed(1)}"
+            fill="#3ea677"/>
+    </svg>`;
+
+  const legend = `
+    <div class="size-legend">
+      <div class="legend-row"><span class="legend-swatch" style="background:#3ea677;"></span>${realLength.toFixed(2)} × ${realWidth.toFixed(2)} (ขนาดงาน)</div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#e87ba3;"></span>${refLength} × ${refWidth} (ขนาดแท่น)</div>
+    </div>`;
+
+  return svg + legend;
 }
 
 function renderRefTable(){
