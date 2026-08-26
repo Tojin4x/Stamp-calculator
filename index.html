@@ -381,6 +381,47 @@
     color: var(--stamp-red);
     margin-top: 2px;
   }
+
+  .ink-card{
+    text-align:center;
+    margin-top: 22px;
+    padding-top: 20px;
+    border-top: 1px dashed var(--line-soft);
+  }
+  .ink-eyebrow{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6a6455;
+    margin-bottom: 10px;
+  }
+  .ink-box{
+    display:inline-block;
+    border-radius: 6px;
+    padding: 14px 26px;
+    background: #eef3ee;
+  }
+  .ink-code{
+    font-family: 'Special Elite', monospace;
+    font-size: 22px;
+    color: #22694a;
+  }
+  .ink-dims{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: #4f7d63;
+    margin-top: 4px;
+  }
+  .ink-note{
+    font-size: 12px;
+    color: #8b8680;
+    margin-top: 8px;
+  }
+  .ink-box.none{
+    background: #f3e9e9;
+  }
+  .ink-box.none .ink-code{ color: var(--stamp-red); font-size: 14px; font-family:'IBM Plex Sans Thai'; }
 </style>
 </head>
 <body>
@@ -432,6 +473,8 @@
     <div class="reason" id="reasonText"></div>
 
     <div class="options" id="optionsGrid"></div>
+
+    <div class="ink-card" id="inkCard"></div>
   </div>
 
   <button class="ref-toggle" id="refToggleBtn" onclick="toggleRefTable()">☰ ดูตารางราคากลางทั้งหมด (รหัสแท่น × ราคา)</button>
@@ -466,6 +509,35 @@ const STAMP_CODE_ROWS = [
   ["X6","X7","Y4","Y5","Z2"],
   ["Y6","Z3","Z4"],
   ["Z5","Z6","Z7"],
+];
+
+// ==================================================
+// ด้ามตรายางหมึกในตัว (self-inking) — ขนาดพื้นที่พิมพ์เป็น มม.
+// ==================================================
+const SELF_INK_HANDLES = [
+  { codes: ["S-830", "S-830"], w: 75, h: 38 },
+  { codes: ["S-833"], w: 82, h: 25 },
+  { codes: ["S-835"], w: 30, h: 20 },
+  { codes: ["S-829", "S-829"], w: 64, h: 40 },
+  { codes: ["S-837"], w: 50, h: 40 },
+  { codes: ["S-834"], w: 65, h: 30 },
+  { codes: ["S-828", "S-828D"], w: 56, h: 33 },
+  { codes: ["S-845"], w: 70, h: 25 },
+  { codes: ["S-827", "S-827"], w: 50, h: 30 },
+  { codes: ["S-542", "S-542D"], w: 42, h: 42 },
+  { codes: ["S-836", "S-836"], w: 45, h: 30 },
+  { codes: ["S-844"], w: 58, h: 22 },
+  { codes: ["S-530", "S-530"], w: 32, h: 32 },
+  { codes: ["S-832"], w: 75, h: 15 },
+  { codes: ["S-310"], w: 54, h: 13 },
+  { codes: ["S-842", "S-722"], w: 38, h: 14 },
+  { codes: ["S-826", "S-401,402"], w: 41, h: 24 },
+  { codes: ["S-843", "S-723"], w: 47, h: 18 },
+  { codes: ["S-831"], w: 70, h: 10 },
+  { codes: ["S-520"], w: 20, h: 20 },
+  { codes: ["S-308"], w: 45, h: 10 },
+  { codes: ["S-841"], w: 26, h: 10 },
+  { codes: ["S-820"], w: 12, h: 6 },
 ];
 
 // ==================================================
@@ -519,6 +591,37 @@ function getBasePrice(refW, refL){
   if (!row) return null;
   const entry = row.find(([l, _]) => l === refL);
   return entry ? entry[1] : null;
+}
+
+// ==================================================
+// จับคู่ด้ามหมึกในตัวที่เล็กที่สุดที่ยังพอดีกับขนาดงาน (มม.)
+// ==================================================
+function findSelfInkHandle(jobWidthCm, jobLengthCm){
+  const jobMax = Math.max(jobWidthCm, jobLengthCm) * 10;
+  const jobMin = Math.min(jobWidthCm, jobLengthCm) * 10;
+
+  let best = null;
+  let bestArea = Infinity;
+
+  for (const handle of SELF_INK_HANDLES){
+    const hMax = Math.max(handle.w, handle.h);
+    const hMin = Math.min(handle.w, handle.h);
+    if (hMax >= jobMax && hMin >= jobMin){
+      const area = hMax * hMin;
+      if (area < bestArea){
+        bestArea = area;
+        best = handle;
+      }
+    }
+  }
+
+  if (!best) return null;
+
+  const hMax = Math.max(best.w, best.h);
+  const hMin = Math.min(best.w, best.h);
+  const exact = (hMax === jobMax && hMin === jobMin);
+
+  return { ...best, exact };
 }
 
 // ==================================================
@@ -649,6 +752,28 @@ function handleCalculate(){
 
   const resultCard = document.getElementById('result');
   resultCard.style.display = 'block';
+
+  // ---- ด้ามหมึกในตัว ----
+  const inkCard = document.getElementById('inkCard');
+  const inkMatch = findSelfInkHandle(width, length);
+  if (inkMatch){
+    inkCard.innerHTML = `
+      <div class="ink-eyebrow">แนะนำด้ามหมึกในตัว</div>
+      <div class="ink-box">
+        <div class="ink-code">${inkMatch.codes.join(', ')}</div>
+        <div class="ink-dims">${inkMatch.w} × ${inkMatch.h} mm.</div>
+      </div>
+      <div class="ink-note">${inkMatch.exact ? 'ขนาดพอดีเป๊ะ' : 'เลือกด้ามที่เล็กที่สุดที่ยังพอดีกับงาน'}</div>
+    `;
+  } else {
+    inkCard.innerHTML = `
+      <div class="ink-eyebrow">แนะนำด้ามหมึกในตัว</div>
+      <div class="ink-box none">
+        <div class="ink-code">ไม่มีด้ามในตัวที่รองรับขนาดนี้</div>
+      </div>
+      <div class="ink-note">งานใหญ่เกินด้ามหมึกในตัวที่มี ต้องใช้แท่นแบบมีด้ามแยก</div>
+    `;
+  }
 
   // restart stamp animation
   const mark = document.getElementById('stampMark');
