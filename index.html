@@ -250,12 +250,49 @@
     box-shadow: 0 0 0 1px var(--stamp-red) inset;
   }
   .opt.missing{
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    color: #a39d8c;
+    grid-column: 1 / -1;
+    display: block;
+    text-align: left;
+    color: #6a6455;
     font-size: 12px;
     font-family: 'IBM Plex Mono', monospace;
+  }
+  .opt.missing .missing-label{
+    text-align:center;
+    letter-spacing: 0.04em;
+    margin-bottom: 12px;
+    color: var(--stamp-red);
+  }
+  .ref-row-wrap .ref-row{ margin-bottom: 6px; }
+  .ref-row-wrap .ref-cell{ padding: 5px 2px; }
+  .ref-row-wrap .ref-cell .code{ font-size: 11px; }
+  .ref-row-wrap .ref-cell .price{ font-size: 10px; }
+
+  .ref-single-wrap{ text-align:center; }
+  .ref-single-label{
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    font-weight: 700;
+    color: var(--stamp-red);
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
+  .ref-single-box{
+    border: 1px solid var(--line-soft);
+    border-radius: 6px;
+    padding: 18px 10px;
+    background: #fbf8f0;
+  }
+  .ref-single-code{
+    font-family: 'Special Elite', monospace;
+    font-size: 24px;
+    color: var(--ink-navy);
+  }
+  .ref-single-price{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--stamp-red);
+    margin-top: 6px;
   }
 
   footer{
@@ -265,6 +302,56 @@
     font-family: 'IBM Plex Mono', monospace;
     margin-top: 30px;
     letter-spacing: 0.04em;
+  }
+
+  .ref-toggle{
+    width: 100%;
+    background: transparent;
+    border: 1px dashed var(--line-soft);
+    color: #6a6455;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    padding: 12px;
+    margin: 0 0 20px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .ref-toggle:hover{ border-color: var(--stamp-red); color: var(--stamp-red); }
+
+  #refTable{ display:none; }
+  .ref-title{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #6a6455;
+    margin-bottom: 16px;
+    text-align:center;
+  }
+  .ref-row{
+    display:flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .ref-cell{
+    flex: 1;
+    border: 1px solid var(--line-soft);
+    border-radius: 3px;
+    background: #fbf8f0;
+    text-align:center;
+    padding: 8px 4px;
+  }
+  .ref-cell .code{
+    font-family: 'Special Elite', monospace;
+    font-size: 13px;
+    color: var(--ink-navy);
+  }
+  .ref-cell .price{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--stamp-red);
+    margin-top: 2px;
   }
 </style>
 </head>
@@ -315,6 +402,13 @@
     <div class="reason" id="reasonText"></div>
 
     <div class="options" id="optionsGrid"></div>
+  </div>
+
+  <button class="ref-toggle" id="refToggleBtn" onclick="toggleRefTable()">☰ ดูตารางราคากลางทั้งหมด (รหัสแท่น × ราคา)</button>
+
+  <div class="card" id="refTable">
+    <div class="ref-title">ตารางราคากลาง</div>
+    <div id="refTableBody"></div>
   </div>
 
   <footer>ราคาคำนวณจากตารางอ้างอิงแท่นตรายางมาตรฐาน</footer>
@@ -388,6 +482,13 @@ const STAMP_CODE_TABLE = new Map();
 
 function getStampCode(w, l){
   return STAMP_CODE_TABLE.get(`${w}_${l}`) || "N/A";
+}
+
+function getBasePrice(refW, refL){
+  const row = REFERENCE_TABLE.get(refW);
+  if (!row) return null;
+  const entry = row.find(([l, _]) => l === refL);
+  return entry ? entry[1] : null;
 }
 
 // ==================================================
@@ -500,9 +601,16 @@ function handleCalculate(){
     const downIsSelected = selected === down;
     grid.appendChild(buildOptionCard('▼ ปัดลง', down, downIsSelected));
   } else {
+    const basePrice = getBasePrice(selected.refWidth, selected.refLength);
     const div = document.createElement('div');
-    div.className = 'opt missing';
-    div.textContent = 'ไม่มีแท่นปัดลงที่พอดี';
+    div.className = 'ref-single-wrap';
+    div.innerHTML = `
+      <div class="ref-single-label">ราคากลาง</div>
+      <div class="ref-single-box">
+        <div class="ref-single-code">${selected.code}</div>
+        <div class="ref-single-price">฿${basePrice !== null ? basePrice.toLocaleString() : '-'}</div>
+      </div>
+    `;
     grid.appendChild(div);
   }
 
@@ -537,6 +645,39 @@ document.getElementById('width').addEventListener('keydown', e => {
 document.getElementById('length').addEventListener('keydown', e => {
   if (e.key === 'Enter') handleCalculate();
 });
+
+// ==================================================
+// ตารางราคากลาง (รหัสแท่น + ราคาตั้งต้นจากตารางอ้างอิง)
+// ==================================================
+function buildRefTableHTML(){
+  let html = '';
+  const refEntries = Array.from(REFERENCE_TABLE.entries());
+  refEntries.forEach(([refW, row], rowIdx) => {
+    const codes = STAMP_CODE_ROWS[rowIdx] || [];
+    html += '<div class="ref-row">';
+    row.forEach(([refL, price], colIdx) => {
+      const code = codes[colIdx] || 'N/A';
+      html += `<div class="ref-cell"><div class="code">${code}</div><div class="price">฿${price.toLocaleString()}</div></div>`;
+    });
+    html += '</div>';
+  });
+  return html;
+}
+
+function renderRefTable(){
+  document.getElementById('refTableBody').innerHTML = buildRefTableHTML();
+}
+
+function toggleRefTable(forceOpen){
+  const table = document.getElementById('refTable');
+  const btn = document.getElementById('refToggleBtn');
+  const shouldShow = forceOpen === true || table.style.display !== 'block';
+  table.style.display = shouldShow ? 'block' : 'none';
+  btn.textContent = shouldShow ? '☰ ซ่อนตารางราคากลาง' : '☰ ดูตารางราคากลางทั้งหมด (รหัสแท่น × ราคา)';
+  if (shouldShow) table.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+renderRefTable();
 </script>
 </body>
 </html>
